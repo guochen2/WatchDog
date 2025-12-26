@@ -1,4 +1,5 @@
-﻿using WatchDog.src.Interfaces;
+﻿using WatchDog.src.Hubs;
+using WatchDog.src.Interfaces;
 
 namespace WatchDog.src.Models
 {

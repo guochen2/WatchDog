@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Http;
+﻿using Furion.EventBus;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Controllers;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.IO;
@@ -7,11 +8,13 @@ using System.Collections;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Net.NetworkInformation;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using WatchDog.src.Attributes;
 using WatchDog.src.Enums;
 using WatchDog.src.Helpers;
+using WatchDog.src.Hubs;
 using WatchDog.src.Interfaces;
 using WatchDog.src.Managers;
 using WatchDog.src.Models;
@@ -27,16 +30,17 @@ namespace WatchDog.src
         private readonly IBroadcastHelper _broadcastHelper;
         private readonly WatchDogOptionsModel _options;
         private readonly IMemoryCache _memoryCache;
+        private readonly IEventPublisher _eventPublisher;
         // 缓存键前缀（避免缓存键冲突）
         private const string EndpointFeatureCacheKeyPrefix = "EndpointFeature_";
 
-        public WatchDog(WatchDogOptionsModel options, RequestDelegate next, IBroadcastHelper broadcastHelper, IMemoryCache memoryCache)
+        public WatchDog(WatchDogOptionsModel options, RequestDelegate next, IBroadcastHelper broadcastHelper, IMemoryCache memoryCache, IEventPublisher eventPublisher)
         {
             _next = next;
             _options = options;
             _recyclableMemoryStreamManager = new RecyclableMemoryStreamManager();
             _broadcastHelper = broadcastHelper;
-
+            _eventPublisher = eventPublisher;
             Serializer = options.Serializer;
             WatchDogConfigModel.UserName = _options.WatchPageUsername;
             WatchDogConfigModel.Password = _options.WatchPagePassword;
@@ -122,9 +126,7 @@ namespace WatchDog.src
                     StartTime = requestLog.StartTime,
                     EndTime = responseLog.FinishTime
                 };
-
-                await DynamicDBManager.InsertWatchLog(watchLog);
-                await _broadcastHelper.BroadcastWatchLog(watchLog);
+                await _eventPublisher.PublishAsync(Consts.WatchDogMainLogEventBroadcastWatchLog, watchLog);
 
             }
             else

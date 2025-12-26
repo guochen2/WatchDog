@@ -1,7 +1,9 @@
-﻿using Microsoft.AspNetCore.Http;
+﻿using Furion.EventBus;
+using Microsoft.AspNetCore.Http;
 using System;
 using System.Diagnostics;
 using System.Threading.Tasks;
+using WatchDog.src.Hubs;
 using WatchDog.src.Interfaces;
 using WatchDog.src.Managers;
 using WatchDog.src.Models;
@@ -11,11 +13,12 @@ namespace WatchDog.src
     internal class WatchDogExceptionLogger
     {
         private readonly RequestDelegate _next;
-        private readonly IBroadcastHelper _broadcastHelper;
-        public WatchDogExceptionLogger(RequestDelegate next, IBroadcastHelper broadcastHelper)
+        private readonly IEventPublisher _eventPublisher;
+
+        public WatchDogExceptionLogger(RequestDelegate next, IEventPublisher eventPublisher)
         {
             _next = next;
-            _broadcastHelper = broadcastHelper;
+            _eventPublisher = eventPublisher;
         }
 
         public async Task InvokeAsync(HttpContext context)
@@ -45,8 +48,7 @@ namespace WatchDog.src
             watchExceptionLog.RequestBody = requestModel?.RequestBody;
 
             //Insert
-            await DynamicDBManager.InsertWatchExceptionLog(watchExceptionLog);
-            await _broadcastHelper.BroadcastExLog(watchExceptionLog);
+            await _eventPublisher.PublishAsync(Consts.WatchDogMainLogEventBroadcastExLog, watchExceptionLog);
         }
     }
 }

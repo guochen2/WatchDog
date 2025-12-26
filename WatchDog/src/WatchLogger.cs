@@ -1,9 +1,11 @@
-﻿using Microsoft.Extensions.Logging;
+﻿using Furion.EventBus;
+using Microsoft.Extensions.Logging;
 using System;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using WatchDog.src;
 using WatchDog.src.Helpers;
 using WatchDog.src.Managers;
 using WatchDog.src.Models;
@@ -30,7 +32,7 @@ namespace WatchDog
         private readonly bool _shouldLog;
         private readonly bool _shouldLogCallerInfo;
         private readonly WatchDogLoggerProvider _loggerProvider;
-        public WatchDogLogger(bool shouldLog, bool shouldLogCallerInfo, [NotNull]WatchDogLoggerProvider loggerProvider)
+        public WatchDogLogger(bool shouldLog, bool shouldLogCallerInfo, [NotNull] WatchDogLoggerProvider loggerProvider)
         {
             _shouldLog = shouldLog;
             _shouldLogCallerInfo = shouldLogCallerInfo;
@@ -90,10 +92,9 @@ namespace WatchDog
                 };
 
                 //Insert
-                await DynamicDBManager.InsertLog(log);
-                await ServiceProviderFactory.BroadcastHelper.BroadcastLog(log);
+                await MessageCenter.PublishAsync(Consts.WatchDogMainLogEventBroadcastLog, log);
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
                 Console.WriteLine(ex.Message);
             }
