@@ -7,6 +7,9 @@ namespace WatchDog.src.Models
         public static string UserName { get; set; }
         public static string Password { get; set; }
         public static string[] Blacklist { get; set; }
+        public static string[] ReqHeaderBlacklist { get; set; } = new string[0];
+        public static string[] ResHeaderBlacklist { get; set; } = new string[0];
+        public static string[] ExternalWhitelists { get; set; } = new string[0];
     }
 
     public class WatchDogSettings

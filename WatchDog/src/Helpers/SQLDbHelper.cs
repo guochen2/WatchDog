@@ -23,9 +23,9 @@ namespace WatchDog.src.Helpers
             if (!string.IsNullOrEmpty(searchString))
             {
                 if(GeneralHelper.IsPostgres())
-                    query += $"(LOWER( {nameof(WatchLog.Path)} ) LIKE '%{searchString}%' OR LOWER( {nameof(WatchLog.Method)} ) LIKE '%{searchString}%' OR {nameof(WatchLog.ResponseStatus)}::text LIKE '%{searchString}%' OR LOWER( {nameof(WatchLog.QueryString)} ) LIKE '%{searchString}%')" + (string.IsNullOrEmpty(statusCode) && string.IsNullOrEmpty(verbString) ? "" : " AND ");
+                    query += $"(LOWER( {nameof(WatchLog.Path)} ) LIKE '%{searchString}%' OR LOWER( {nameof(WatchLog.Method)} ) LIKE '%{searchString}%' OR {nameof(WatchLog.ResponseStatus)}::text LIKE '%{searchString}%' OR LOWER( {nameof(WatchLog.QueryString)} ) LIKE '%{searchString}%' OR LOWER( {nameof(WatchLog.ResponseHeaders)} ) LIKE '%{searchString}%')" + (string.IsNullOrEmpty(statusCode) && string.IsNullOrEmpty(verbString) ? "" : " AND ");
                 else
-                    query += $"(LOWER( {nameof(WatchLog.Path)} ) LIKE '%{searchString}%' OR LOWER( {nameof(WatchLog.Method)} ) LIKE '%{searchString}%' OR {nameof(WatchLog.ResponseStatus)} LIKE '%{searchString}%' OR LOWER( {nameof(WatchLog.QueryString)} ) LIKE '%{searchString}%')" + (string.IsNullOrEmpty(statusCode) && string.IsNullOrEmpty(verbString) ? "" : " AND ");
+                    query += $"(LOWER( {nameof(WatchLog.Path)} ) LIKE '%{searchString}%' OR LOWER( {nameof(WatchLog.Method)} ) LIKE '%{searchString}%' OR {nameof(WatchLog.ResponseStatus)} LIKE '%{searchString}%' OR LOWER( {nameof(WatchLog.QueryString)} ) LIKE '%{searchString}%' OR LOWER( {nameof(WatchLog.ResponseHeaders)} ) LIKE '%{searchString}%')" + (string.IsNullOrEmpty(statusCode) && string.IsNullOrEmpty(verbString) ? "" : " AND ");
             }
 
             if (!string.IsNullOrEmpty(verbString))

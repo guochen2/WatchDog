@@ -1,11 +1,15 @@
 ﻿using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc.Controllers;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.IO;
 using System;
+using System.Collections;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using WatchDog.src.Attributes;
 using WatchDog.src.Enums;
 using WatchDog.src.Helpers;
 using WatchDog.src.Interfaces;
@@ -22,8 +26,11 @@ namespace WatchDog.src
         private readonly RecyclableMemoryStreamManager _recyclableMemoryStreamManager;
         private readonly IBroadcastHelper _broadcastHelper;
         private readonly WatchDogOptionsModel _options;
+        private readonly IMemoryCache _memoryCache;
+        // 缓存键前缀（避免缓存键冲突）
+        private const string EndpointFeatureCacheKeyPrefix = "EndpointFeature_";
 
-        public WatchDog(WatchDogOptionsModel options, RequestDelegate next, IBroadcastHelper broadcastHelper)
+        public WatchDog(WatchDogOptionsModel options, RequestDelegate next, IBroadcastHelper broadcastHelper, IMemoryCache memoryCache)
         {
             _next = next;
             _options = options;
@@ -34,14 +41,50 @@ namespace WatchDog.src
             WatchDogConfigModel.UserName = _options.WatchPageUsername;
             WatchDogConfigModel.Password = _options.WatchPagePassword;
             WatchDogConfigModel.Blacklist = String.IsNullOrEmpty(_options.Blacklist) ? new string[] { } : _options.Blacklist.Replace(" ", string.Empty).Split(',');
+            _memoryCache = memoryCache;
         }
 
         public async Task InvokeAsync(HttpContext context)
         {
+            var endpoint = context.GetEndpoint();
+            if (endpoint != null)
+            {
+                var cacheKey = $"{EndpointFeatureCacheKeyPrefix}{endpoint.DisplayName}";
+                // 尝试从缓存获取，不存在则解析并缓存
+                var ignoreWatchAttr = await _memoryCache.GetOrCreateAsync(
+                    cacheKey,
+                    async entry =>
+                    {
+                        // 设置缓存永不过期（因为Endpoint启动后不变）
+                        entry.AbsoluteExpiration = DateTimeOffset.MaxValue;
+
+                        // 解析终结点元数据，获取ControllerActionDescriptor
+                        var actionDescriptor = endpoint.Metadata.GetMetadata<ControllerActionDescriptor>();
+                        if (actionDescriptor == null)
+                        {
+                            return null; // 非Controller Action请求
+                        }
+
+                        // 优先获取Action上的特性，没有则获取Controller上的
+                        var attr = actionDescriptor.MethodInfo.GetCustomAttributes(typeof(IgnoreWatchAttribute), inherit: true)
+                            .FirstOrDefault() as IgnoreWatchAttribute
+                            ?? actionDescriptor.ControllerTypeInfo.GetCustomAttributes(typeof(IgnoreWatchAttribute), inherit: true)
+                                .FirstOrDefault() as IgnoreWatchAttribute;
+
+                        return attr;
+                    });
+                if (ignoreWatchAttr != null)
+                {
+                    await _next.Invoke(context);
+                    return;
+                }
+            }
+
+
             var requestPath = context.Request.Path.ToString();
 
-            if(requestPath.StartsWith('/'))
-                requestPath = requestPath.Remove(0,1);
+            if (requestPath.StartsWith('/'))
+                requestPath = requestPath.Remove(0, 1);
 
             if (!requestPath.Contains("WTCHDwatchpage") &&
                 !requestPath.Contains("watchdog") &&
@@ -50,6 +93,12 @@ namespace WatchDog.src
                 !requestPath.Contains("wtchdlogger") &&
                 !ShouldBlacklist(requestPath))
             {
+                if (endpoint == null && !ShouldExternalWhitelists(requestPath))
+                {
+                    await _next.Invoke(context);
+                    return;
+                }
+
                 //Request handling comes here
                 var requestLog = await LogRequest(context);
                 var responseLog = await LogResponse(context);
@@ -59,7 +108,7 @@ namespace WatchDog.src
 
                 var watchLog = new WatchLog
                 {
-                    IpAddress = context.Connection.RemoteIpAddress.ToString(),
+                    IpAddress = GetClientUserIp(context),
                     ResponseStatus = responseLog.ResponseStatus,
                     QueryString = requestLog.QueryString,
                     Method = requestLog.Method,
@@ -76,6 +125,7 @@ namespace WatchDog.src
 
                 await DynamicDBManager.InsertWatchLog(watchLog);
                 await _broadcastHelper.BroadcastWatchLog(watchLog);
+
             }
             else
             {
@@ -95,7 +145,7 @@ namespace WatchDog.src
                 Method = context.Request.Method.ToString(),
                 QueryString = context.Request.QueryString.ToString(),
                 StartTime = startTime,
-                Headers = context.Request.Headers.Select(x => x.ToString()).Aggregate((a, b) => a + ": " + b),
+                Headers = context.Request.Headers.Where(a => !WatchDogConfigModel.ReqHeaderBlacklist.Contains(a.Key, StringComparer.OrdinalIgnoreCase)).Select(x => x.ToString()).Aggregate((a, b) => a + ": " + b),
             };
 
 
@@ -129,7 +179,7 @@ namespace WatchDog.src
                             ResponseBody = responseBody,
                             ResponseStatus = context.Response.StatusCode,
                             FinishTime = DateTime.Now,
-                            Headers = context.Response.Headers.ContentLength > 0 ? context.Response.Headers.Select(x => x.ToString()).Aggregate((a, b) => a + ": " + b) : string.Empty,
+                            Headers = context.Response.Headers.Count > 0 ? context.Response.Headers.Where(a => !WatchDogConfigModel.ResHeaderBlacklist.Contains(a.Key, StringComparer.OrdinalIgnoreCase)).Select(x => x.ToString()).Aggregate((a, b) => a + ": " + b) : string.Empty,
                         };
                         await originalResponseBody.CopyToAsync(originalBodyStream);
                         return responseBodyDto;
@@ -165,6 +215,29 @@ namespace WatchDog.src
                 return false;
             }
             return WatchDogConfigModel.Blacklist.Contains(requestPath, StringComparer.OrdinalIgnoreCase);
+        }
+        private bool ShouldExternalWhitelists(string requestPath)
+        {
+            if (_options.UseRegexForBlacklisting)
+            {
+                for (int i = 0; i < WatchDogConfigModel.ExternalWhitelists.Length; i++)
+                {
+                    if (Regex.IsMatch(requestPath, WatchDogConfigModel.ExternalWhitelists[i], RegexOptions.IgnoreCase))
+                        return true;
+                }
+                return false;
+            }
+            return WatchDogConfigModel.ExternalWhitelists.Contains(requestPath, StringComparer.OrdinalIgnoreCase);
+        }
+        private static string GetClientUserIp(HttpContext context)
+        {
+            string text = context.Request.Headers["X-Forwarded-For"].FirstOrDefault();
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                return context.Connection.RemoteIpAddress?.MapToIPv4()?.ToString();
+            }
+
+            return text.Split(',')[0];
         }
     }
 }

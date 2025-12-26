@@ -10,9 +10,8 @@
 		<RepositoryType>git</RepositoryType>
 		<PackageTags>Logger; Exception; Request; Response; Viewer; WatchDog; Monitoring; Logging; HTTP; IzyPro; Khelechy</PackageTags>
 		<Authors>Israel Ulelu, Kelechi Onyekwere</Authors>
-		<PackageId>WatchDog.NET</PackageId>
 		<PackageLicenseExpression>MIT</PackageLicenseExpression>
-		<Version>1.4.12</Version>
+		<Version>1.4.13-beta.3</Version>
 		<PackageReleaseNotes>
 			- Package upgrades for vulnerability patches
 		</PackageReleaseNotes>
@@ -51,11 +50,11 @@
 		<PackageReference Include="Microsoft.AspNetCore.SignalR.Core" Version="1.0.15" />
 		<PackageReference Include="Microsoft.AspNetCore.StaticFiles" Version="2.1.1" />
 		<PackageReference Include="Microsoft.Data.SqlClient" Version="5.2.2" />
-		<PackageReference Include="Microsoft.Extensions.FileProviders.Abstractions" Version="8.0.0"  Condition="'$(TargetFramework)' == 'net8.0'"/>
+		<PackageReference Include="Microsoft.Extensions.FileProviders.Abstractions" Version="8.0.0" Condition="'$(TargetFramework)' == 'net8.0'" />
 		<PackageReference Include="Microsoft.Extensions.FileProviders.Abstractions" Version="3.1.22" />
-		<PackageReference Include="Microsoft.Extensions.FileProviders.Embedded" Version="8.0.11"  Condition="'$(TargetFramework)' == 'net8.0'"/>
+		<PackageReference Include="Microsoft.Extensions.FileProviders.Embedded" Version="8.0.11" Condition="'$(TargetFramework)' == 'net8.0'" />
 		<PackageReference Include="Microsoft.Extensions.FileProviders.Embedded" Version="3.1.22" />
-		<PackageReference Include="Microsoft.Extensions.FileProviders.Physical" Version="8.0.0"  Condition="'$(TargetFramework)' == 'net8.0'"/>
+		<PackageReference Include="Microsoft.Extensions.FileProviders.Physical" Version="8.0.0" Condition="'$(TargetFramework)' == 'net8.0'" />
 		<PackageReference Include="Microsoft.Extensions.FileProviders.Physical" Version="3.1.22" />
 		<PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.0" Condition="'$(TargetFramework)' == 'net8.0'" />
 		<PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="3.1.22" />

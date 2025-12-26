@@ -1,10 +1,12 @@
 ﻿using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.FileProviders;
 using System;
 using System.IO;
+using System.Net;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using WatchDog.src.Data;
@@ -118,10 +120,10 @@ namespace WatchDog
             if (!string.IsNullOrEmpty(options.CorsPolicy))
                 app.UseCors(options.CorsPolicy);
 
-            #if NET8_0_OR_GREATER
+#if NET8_0_OR_GREATER
             if (options.UseOutputCache)
                 app.UseOutputCache();
-            #endif
+#endif
 
             return app.UseEndpoints(endpoints =>
             {
@@ -139,6 +141,59 @@ namespace WatchDog
                     await context.Response.SendFileAsync(WatchDogExtension.GetFile());
                 });
             });
+        }
+
+        public static IEndpointRouteBuilder MapWatchRoute(this IEndpointRouteBuilder endpoints)
+        {
+            endpoints.MapHub<LoggerHub>("/wtchdlogger");
+            endpoints.MapControllerRoute(
+                name: "WTCHDwatchpage",
+                pattern: "WTCHDwatchpage/{action}",
+                defaults: new { controller = "WatchPage", action = "Index" });
+            endpoints.MapGet("watchdog", async context =>
+            {
+                context.Response.ContentType = "text/html";
+                await context.Response.SendFileAsync(WatchDogExtension.GetFile());
+            });
+            return endpoints;
+        }
+
+        public static IApplicationBuilder UseWatchDogSimple(this IApplicationBuilder app, Action<WatchDogOptionsModel> configureOptions)
+        {
+            ServiceProviderFactory.BroadcastHelper = app.ApplicationServices.GetService<IBroadcastHelper>();
+            var options = new WatchDogOptionsModel();
+            configureOptions(options);
+            if (string.IsNullOrEmpty(options.WatchPageUsername))
+            {
+                throw new WatchDogAuthenticationException("Parameter Username is required on .UseWatchDog()");
+            }
+            else if (string.IsNullOrEmpty(options.WatchPagePassword))
+            {
+                throw new WatchDogAuthenticationException("Parameter Password is required on .UseWatchDog()");
+            }
+
+            app.UseMiddleware<src.WatchDog>(options);
+
+
+            app.UseStaticFiles(new StaticFileOptions()
+            {
+                FileProvider = new EmbeddedFileProvider(
+                    typeof(WatchDogExtension).GetTypeInfo().Assembly,
+                  "WatchDog.src.WatchPage"),
+
+                RequestPath = new PathString("/WTCHDGstatics")
+            });
+
+            app.UseSession();
+
+            if (!string.IsNullOrEmpty(options.CorsPolicy))
+                app.UseCors(options.CorsPolicy);
+
+#if NET8_0_OR_GREATER
+            if (options.UseOutputCache)
+                app.UseOutputCache();
+#endif
+            return app;
         }
 
 
